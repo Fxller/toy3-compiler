@@ -1,6 +1,6 @@
 # toy3-compiler
 
-Questo progetto, denominato **toy3-compiler**, nasce come esempio didattico di come realizzare un compilatore di base in Java utilizzando **JavaCC/CUP** per la parte di parsing, **JFlex** per il lexer e una serie di **Visitor** per l’elaborazione dell’AST (Abstract Syntax Tree).
+Questo progetto, denominato **toy3-compiler**, nasce come esempio didattico di come realizzare un compilatore di base in Java utilizzando **JFlex/CUP** per la parte di parsing, **JFlex** per il lexer e una serie di **Visitor** per l’elaborazione dell’AST (Abstract Syntax Tree).
 
 ## Funzionalità principali
 
