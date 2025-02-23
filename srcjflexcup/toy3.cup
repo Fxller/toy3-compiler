@@ -1,0 +1,158 @@
+import java_cup.runtime.*;
+import java.util.*;
+import nodes.body.*;
+import nodes.defdecl.*;
+import nodes.expr.*;
+import nodes.pardecl.*;
+import nodes.program.*;
+import nodes.stat.*;
+import nodes.vardecl.*;
+import nodes.funcall.*;
+
+parser code {:
+    List<Identifier> vars = new ArrayList<>();
+    List<ExprOp> exprs = new ArrayList<>();
+    List<StatOp> stats = new ArrayList<>();
+    List<PVarOp> pVarOpList = new ArrayList<>();
+    List<ParDeclOp> parDeclOpList = new ArrayList<>();
+    List<VarOptInitOp> varOptInitOpList = new ArrayList<>();
+    Stack<List<VarDeclOp>> varDeclOpStack = new Stack<>();
+    List<VarDeclOp> varDeclOpList = new ArrayList<>();
+    List<Object> varDeclOporDefDeclOp = new ArrayList<>();
+:};
+
+// Terminali e non terminali
+
+terminal PROGRAM, BEGIN, END, SEMI, COLON, INT, BOOL, DOUBLE, STRING, CHAR, TRUE, FALSE, DEF, LPAR, RPAR, PIPE, ASSIGNDECL, IN, OUT, OUTNL, IF, THEN, ELSE, WHILE, RETURN, PLUS, MINUS, TIMES, DIV, EQ, NE, LT, LE, GT, GE, NOT, AND, OR, ID, INT_CONST, DOUBLE_CONST, STRING_CONST, CHAR_CONST, LBRAC, RBRAC, COMMA, REF, ASSIGN, DO;
+nonterminal Programma, Decls, VarDecls, VarDecl, VarsOptInit, TypeOrConstant, Type, Constant, DefDecl, ParDecls, ParDecl, PVar, PVars, OptType, Body, Statements, Stat, Vars, Exprs, FunCall, Expr, ArithOp, RelOp, BoolOp;
+
+// Precedenze
+
+precedence left OR;
+precedence left AND;
+precedence right NOT;
+precedence left EQ, NE, LT, LE, GT, GE;
+precedence left PLUS, MINUS;
+precedence left TIMES, DIV;
+precedence right PLUS, MINUS;
+precedence left LPAR, RPAR;
+
+// Grammatica
+
+Programma ::= PROGRAM Decls:d BEGIN VarDecls:vd Statements:stmts END
+{:
+    RESULT = new ProgramOp(new ArrayList<Object>((List<Object>) d), new BeginEndOp((List<VarDeclOp>) ((Stack<List<VarDeclOp>>) vd).pop(), new ArrayList<StatOp>((List<StatOp>) stmts)));
+    stats.clear();
+    varDeclOporDefDeclOp.clear();
+:};
+
+Decls ::= VarDecl:vd Decls {: varDeclOporDefDeclOp.add(0, vd); RESULT = varDeclOporDefDeclOp; :}
+    | DefDecl:dd Decls  {: varDeclOporDefDeclOp.add(0, dd); RESULT = varDeclOporDefDeclOp;:}
+    | {: RESULT = new ArrayList<Object>(); :} ;
+
+VarDecls ::= VarDecls VarDecl:vd {: varDeclOpStack.peek().add((VarDeclOp) vd); RESULT = varDeclOpStack; :}
+    | {: varDeclOpStack.push(new ArrayList<VarDeclOp>()); RESULT = varDeclOpStack; :};
+
+VarDecl ::= VarsOptInit:v COLON TypeOrConstant:tc SEMI
+{:
+    RESULT = new VarDeclOp(new ArrayList<VarOptInitOp>((List<VarOptInitOp>)v), tc);
+    varOptInitOpList.clear();
+:};
+
+// dichiarazione di variabili
+VarsOptInit ::= ID:id PIPE VarsOptInit {: varOptInitOpList.add(0, new VarOptInitOp(new Identifier((String) id), null)); RESULT = varOptInitOpList; :}
+	   | ID:id ASSIGNDECL Expr:expr PIPE VarsOptInit {: varOptInitOpList.add(0, new VarOptInitOp(new Identifier((String) id), (ExprOp) expr)); RESULT = varOptInitOpList; :}
+	   | ID:id {: varOptInitOpList.add(0, new VarOptInitOp(new Identifier((String) id), null)); RESULT = varOptInitOpList; :}
+	   | ID:id ASSIGNDECL Expr:expr {: varOptInitOpList.add(0, new VarOptInitOp(new Identifier((String) id), (ExprOp) expr)); RESULT = varOptInitOpList; :};
+
+TypeOrConstant ::= Type:t {: RESULT = t; :}
+        | Constant:c {: RESULT = c; :};
+
+Type ::= INT {: RESULT = "int"; :}
+    | BOOL {: RESULT = "bool"; :}
+    | DOUBLE {: RESULT = "double"; :}
+    | STRING {: RESULT = "string"; :}
+    | CHAR {: RESULT = "char"; :};
+
+Constant ::= TRUE:t {: RESULT = new Constant(t); :}
+    | FALSE:f {: RESULT = new Constant(f); :}
+    | INT_CONST:i {: RESULT = new Constant(i); :}
+    | DOUBLE_CONST:d {: RESULT = new Constant(d); :}
+    | CHAR_CONST:c {: RESULT = new Constant(c); :}
+    | STRING_CONST:s {: RESULT = new Constant(s); :};
+
+// dichiarazione di funzioni
+DefDecl ::= DEF ID:id LPAR ParDecls:pardecls RPAR OptType:t Body:body {: RESULT = new DefDeclOp(new Identifier((String) id), new ArrayList<ParDeclOp>((List<ParDeclOp>) pardecls), (String) t, (BodyOp) body); parDeclOpList.clear(); :}
+    | DEF ID:id LPAR RPAR OptType:t Body:body {: RESULT = new DefDeclOp(new Identifier((String) id), null, (String) t, (BodyOp) body); :};
+
+ParDecls ::= ParDecl:pardecl SEMI ParDecls {: parDeclOpList.add(0, (ParDeclOp) pardecl); RESULT = parDeclOpList; :}
+    | ParDecl:pardecl {: parDeclOpList.add(0, (ParDeclOp) pardecl); RESULT = parDeclOpList; :} ;
+
+ParDecl ::= PVars:p COLON Type:t
+{:
+    RESULT = new ParDeclOp(new ArrayList<PVarOp>((List<PVarOp>) p), (String) t);
+    pVarOpList.clear();
+:};
+
+PVars ::= PVar:p COMMA PVars {: pVarOpList.add(0, (PVarOp) p); RESULT = pVarOpList; :}
+    | PVar:p {: pVarOpList.add(0, (PVarOp) p); RESULT = pVarOpList; :} ;
+
+PVar ::= ID:id {: RESULT = new PVarOp(new Identifier((String) id)); :}
+    | REF ID:id {: RESULT = new PVarOp(new Identifier((String) id), true); :};
+
+OptType ::= COLON Type:t {: RESULT = t; :}
+    | ;
+
+Body ::= LBRAC VarDecls:vardecls Statements:stmts RBRAC
+{:
+    RESULT = new BodyOp((List<VarDeclOp>) varDeclOpStack.pop(), new ArrayList<StatOp>((List<StatOp>) stmts));
+    varDeclOpList.clear();
+    stats.clear();
+:};
+
+Statements ::= Stat:st Statements {: stats.add(0, (StatOp) st); RESULT = stats; :}
+    | {: RESULT = new ArrayList<StatOp>(); :};
+
+
+Stat ::= Vars:v IN SEMI {: RESULT = new ReadOp(new ArrayList<Identifier>((List<Identifier>) v)); vars.clear();:}
+    | Exprs:e OUT SEMI {: RESULT = new WriteOp(new ArrayList<ExprOp>((List<ExprOp>) e), false); exprs.clear(); :}
+    | Exprs:e OUTNL SEMI {: RESULT = new WriteOp(new ArrayList<ExprOp>((List<ExprOp>) e), true); exprs.clear(); :}
+    | Vars:v ASSIGN Exprs:e SEMI
+    {:
+        RESULT = new AssignOp(new ArrayList<Identifier>((List<Identifier>) v), new ArrayList<ExprOp>((List<ExprOp>) e));
+        exprs.clear();
+        vars.clear();
+    :}
+    | FunCall:f SEMI {: RESULT = f; :}
+    | IF LPAR Expr:e RPAR THEN Body:b1 ELSE Body:b2 {: RESULT = new IfThenElseOp((ExprOp) e,(BodyOp) b1,(BodyOp) b2); :}
+    | IF LPAR Expr:e RPAR THEN Body:b {: RESULT = new IfThenOp((ExprOp) e,(BodyOp) b); :}
+    | WHILE LPAR Expr:e RPAR DO Body:b {: RESULT = new WhileOp((ExprOp) e,(BodyOp) b); :}
+    | RETURN Expr:e SEMI {: RESULT = new ReturnOp((ExprOp) e); :};
+
+Vars ::= ID:id PIPE Vars {: vars.add(0, new Identifier((String) id)); RESULT = vars; :}
+    | ID:id {: vars.add(0, new Identifier((String) id)); RESULT = vars; :};
+
+Exprs ::= Expr:e COMMA Exprs {: exprs.add(0, (ExprOp) e); RESULT = exprs; :}
+    | Expr:e {: exprs.add(0, (ExprOp) e); RESULT = exprs; :};
+
+FunCall ::= ID:id LPAR Exprs:e RPAR {: RESULT = new CallOp(new Identifier((String) id), new ArrayList<ExprOp>((List<ExprOp>) e)); exprs.clear(); :}
+    | ID:id LPAR RPAR  {: RESULT = new CallOp(new Identifier((String) id), null); :} ;
+
+Expr ::= Expr:e1 PLUS Expr:e2 {: RESULT = new BinaryExprOp((ExprOp) e1, (ExprOp) e2, "+"); :}
+	| Expr:e1 MINUS Expr:e2 {: RESULT = new BinaryExprOp((ExprOp) e1, (ExprOp) e2, "-"); :}
+	| Expr:e1 TIMES Expr:e2 {: RESULT = new BinaryExprOp((ExprOp) e1, (ExprOp) e2, "*"); :}
+	| Expr:e1 DIV Expr:e2 {: RESULT = new BinaryExprOp((ExprOp) e1, (ExprOp) e2, "/"); :}
+	| Expr:e1 AND Expr:e2 {: RESULT = new BinaryExprOp((ExprOp) e1, (ExprOp) e2, "and"); :}
+	| Expr:e1 OR Expr:e2 {: RESULT = new BinaryExprOp((ExprOp) e1, (ExprOp) e2, "or"); :}
+	| Expr:e1 GT Expr:e2 {: RESULT = new BinaryExprOp((ExprOp) e1, (ExprOp) e2, ">"); :}
+	| Expr:e1 GE Expr:e2 {: RESULT = new BinaryExprOp((ExprOp) e1, (ExprOp) e2, ">="); :}
+	| Expr:e1 LT Expr:e2 {: RESULT = new BinaryExprOp((ExprOp) e1, (ExprOp) e2, "<"); :}
+	| Expr:e1 LE Expr:e2 {: RESULT = new BinaryExprOp((ExprOp) e1, (ExprOp) e2, "<="); :}
+	| Expr:e1 EQ Expr:e2 {: RESULT = new BinaryExprOp((ExprOp) e1, (ExprOp) e2, "=="); :}
+	| Expr:e1 NE Expr:e2 {: RESULT = new BinaryExprOp((ExprOp) e1, (ExprOp) e2, "<>"); :}
+    | LPAR Expr:e RPAR {: RESULT = e; :}
+    | MINUS Expr:e {: RESULT = new UnaryExprOp((ExprOp) e, "-"); :}
+    | NOT Expr:e {: RESULT = new UnaryExprOp((ExprOp) e, "not"); :}
+    | ID:id {: RESULT = new Identifier((String) id); :}
+    | FunCall:funcall {: RESULT = funcall; :}
+    | Constant:c {: RESULT = c; :};
