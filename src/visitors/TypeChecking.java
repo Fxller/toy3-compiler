@@ -132,6 +132,7 @@ public class TypeChecking implements Visitor {
         table.setCurrentScope(bodyOp.getScope());
         bodyOp.getVarDecls().forEach(e -> e.accept(this));
         bodyOp.getStats().forEach(e -> e.accept(this));
+        table.setCurrentScope(table.getCurrentScope().getParent());
     }
 
     @Override
@@ -299,6 +300,16 @@ public class TypeChecking implements Visitor {
                 System.err.print("Invalid return type " + returnType + " for function " + funType);
                 System.exit(1);
             }
+            else if(funType.equals("main") && !Objects.equals(returnType, "int")) {
+                System.err.print("Invalid return type " + returnType + " for function " + funType);
+                System.exit(1);
+            } else if (!Objects.equals(returnType, funType) && !funType.equals("main")) {
+                System.err.print("Invalid return type " + returnType + " for function " + funType);
+                System.exit(1);
+            }
+            returnOp.setType(funType);
+            // Aggiunta
+            funType = "main";
             returnOp.setType(funType);
         }
 
